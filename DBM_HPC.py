@@ -1,5 +1,7 @@
 import numpy as np
 from scipy.ndimage import convolve
+from scipy.spatial import KDTree
+from scipy.stats import linregress
 from matplotlib.colors import LogNorm
 from matplotlib import pyplot as plt
 import pickle
@@ -139,6 +141,11 @@ class DielectricBreakdown:
             self.spark_dict[step] = (chosen, self.x_offset) # add current step's spark position
             self.steps = step
 
+            # Save progress every 100 steps
+            if step % 100 == 0:
+                with open(pickle_path, 'wb') as f:
+                    pickle.dump(self.spark_dict, f)
+
             # Check if expansion is needed
             if step % 10 == 0:
                 if self.check_boundary_reached(chosen):
@@ -149,6 +156,7 @@ class DielectricBreakdown:
             pickle.dump(self.spark_dict, f)
 
         return step
+
 
     def load_content(self, pickle_path='data.pkl'):
         """Load spark_dict from a pickle file"""
@@ -215,3 +223,38 @@ class DielectricBreakdown:
         plt.axis('off')
         plt.tight_layout()
         plt.show()
+
+    def calculate_fractal_dimension(self, r_min=1, r_max=70, num_r=25):
+        points = np.column_stack(np.where(self.spark))
+        tree = KDTree(points)
+        radii = np.linspace(r_min, r_max, num_r)
+        C_r = []
+        
+        for r in radii:
+            counts = tree.query_ball_point(points, r, return_length=True)
+            C_r.append(np.mean(counts))
+        
+        def fit_fractal_dimension(radii, C_r):
+            log_r = np.log(radii)
+            logC_r = np.log(C_r)
+            slope, _, _, _, _ = linregress(log_r, logC_r)
+            return slope
+
+        D = fit_fractal_dimension(radii, C_r)
+        print(f"Fractal dimension D = {D:.3f}")
+        plt.figure(figsize=(8, 5))
+        plt.plot(np.log(radii), np.log(C_r), 'bo-', label='Data')
+        plt.xlabel('log(r)')
+        plt.ylabel('log(C(r))')
+        plt.title(f'Fractal Dimension Fit (D = {D:.3f})')
+        plt.legend()
+        plt.grid()
+        plt.show()
+        return D
+    
+    def theoretical_fractal_dimension(self, eta, d_s=2, d_w=2):
+        numerator = d_s**2 + eta * (d_w - 1)
+        denominator = d_s + eta * (d_w - 1)
+        d_f = numerator / denominator
+        return d_f
+    
