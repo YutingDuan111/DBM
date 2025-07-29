@@ -126,8 +126,13 @@ class DielectricBreakdown:
         self.phi[chosen] = 0
         return chosen
 
+    def save_final_spark(self, pickle_path):
+        """Save the final spark state to a pickle file"""
+        with open(pickle_path, 'wb') as f:
+            pickle.dump(self.spark, f)
+        print(f"Final spark state saved to {pickle_path}")
 
-    def simulate(self, max_steps=1200, pickle_path='data.pkl'):
+    def simulate(self, max_steps=1200, pickle_path='data.pkl', dontsave=bool):
         self.solve_phi()  # Initial potential
         self.spark_dict = {}  # clean previous spark records
 
@@ -138,27 +143,32 @@ class DielectricBreakdown:
                 break
             
             self.solve_phi()
-            self.spark_dict[step] = (chosen, self.x_offset) # add current step's spark position
             self.steps = step
 
-            # Save progress every 100 steps
-            if step % 100 == 0:
-                with open(pickle_path, 'wb') as f:
-                    pickle.dump(self.spark_dict, f)
+            if not dontsave:
+                self.spark_dict[step] = (chosen, self.x_offset) # add current step's spark position
+                # Save progress every 100 steps
+                if step % 100 == 0:
+                    with open(pickle_path, 'wb') as f:
+                        pickle.dump(self.spark_dict, f)
 
             # Check if expansion is needed
             if step % 10 == 0:
                 if self.check_boundary_reached(chosen):
                     self.expand_grid()
                     self.solve_phi()
-            
-        with open(pickle_path, 'wb') as f:
-            pickle.dump(self.spark_dict, f)
+
+        if not dontsave: 
+            with open(pickle_path, 'wb') as f:
+                pickle.dump(self.spark_dict, f)
+
+        if dontsave:
+            self.save_final_spark(pickle_path=pickle_path)
 
         return step
 
 
-    def load_content(self, pickle_path='data.pkl'):
+    def load_history(self, pickle_path='data.pkl'):
         """Load spark_dict from a pickle file"""
         with open(pickle_path, 'rb') as f:
             self.spark_dict = pickle.load(f)
@@ -177,6 +187,13 @@ class DielectricBreakdown:
             self.spark[coord] = True
         return self.spark
 
+    def load_spark(self, pickle_path='data.pkl'):
+        """Load spark state from a pickle file"""
+        with open(pickle_path, 'rb') as f:
+            self.spark = pickle.load(f)
+            self.N = self.spark.shape[0]
+        return self.spark
+    
     def plot_spark(self, figsize=(6,6)):
         plt.figure(figsize=figsize)
         plt.imshow(self.spark, cmap='gray')
