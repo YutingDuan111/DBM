@@ -132,10 +132,10 @@ class DielectricBreakdown:
             pickle.dump(self.spark, f)
         print(f"Final spark state saved to {pickle_path}")
 
-    def simulate(self, max_steps=1200, pickle_path='data.pkl', dontsave=bool):
+    def simulate(self, max_steps=1200, pickle_path='data.pkl', save_lite=False, save_incremental=False):
         self.solve_phi()  # Initial potential
         self.spark_dict = {}  # clean previous spark records
-
+        save_counter = 0 #filetag at the end of incremental saves
         for step in range(max_steps):
             chosen = self.grow_spark()
             if chosen is None:
@@ -144,13 +144,17 @@ class DielectricBreakdown:
             
             self.solve_phi()
             self.steps = step
-
-            if not dontsave:
-                self.spark_dict[step] = (chosen, self.x_offset) # add current step's spark position
+            self.spark_dict[step] = (chosen, self.x_offset) # add current step's spark position
+            if(save_incremental):
                 # Save progress every 100 steps
-                if step % 100 == 0:
-                    with open(pickle_path, 'wb') as f:
-                        pickle.dump(self.spark_dict, f)
+                if step % 500 == 0:
+                    inc_pickle_path = pickle_path.split('.')[0] + "_" + str(save_counter) + ".p"
+                    save_counter += 1
+                    with open(inc_pickle_path, 'wb') as f:
+                        if(save_lite == False):
+                            pickle.dump(self.spark_dict, f)
+                        else:
+                            pickle.dump(self.spark, f)
 
             # Check if expansion is needed
             if step % 10 == 0:
@@ -158,12 +162,13 @@ class DielectricBreakdown:
                     self.expand_grid()
                     self.solve_phi()
 
-        if not dontsave: 
-            with open(pickle_path, 'wb') as f:
+        inc_pickle_path = pickle_path.split('.')[0] + "_" + str(save_counter) + ".p"
+        save_counter += 1
+        if(save_lite == False): 
+            with open(inc_pickle_path, 'wb') as f:
                 pickle.dump(self.spark_dict, f)
-
-        if dontsave:
-            self.save_final_spark(pickle_path=pickle_path)
+        else:
+            self.save_final_spark(pickle_path=inc_pickle_path)
 
         return step
 
